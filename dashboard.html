@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ParentWatch — Live Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #10141c;
+    --border: #1e2535;
+    --accent: #00d9ff;
+    --green: #00ff9d;
+    --yellow: #ffd600;
+    --red: #ff3d6b;
+    --gray: #6b7a99;
+    --text: #e2e8f8;
+    --dim: #4a5578;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,217,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,217,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--accent), #0066ff);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+
+  .logo h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span {
+    color: var(--accent);
+  }
+
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,255,157,0.1);
+    border: 1px solid rgba(0,255,157,0.3);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  #clock {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+  }
+
+  #hostname {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  /* Current Activity Card */
+  .current-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.4s ease;
+  }
+
+  .current-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    transition: background 0.4s ease;
+  }
+
+  .current-card.red::before { background: linear-gradient(90deg, var(--red), transparent); }
+  .current-card.green::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .current-card.yellow::before { background: linear-gradient(90deg, var(--yellow), transparent); }
+
+  .current-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 16px;
+  }
+
+  .current-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .current-info { flex: 1; min-width: 200px; }
+
+  .current-app {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 8px;
+    transition: color 0.4s ease;
+  }
+
+  .current-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--dim);
+    margin-bottom: 10px;
+    word-break: break-word;
+  }
+
+  .current-category {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+  }
+
+  .current-stats {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 22px;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  /* Stats Row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .mini-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .mini-stat-icon {
+    font-size: 28px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .mini-stat-info {}
+  .mini-stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .mini-stat-lbl {
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+  }
+
+  .val-green { color: var(--green); }
+  .val-red { color: var(--red); }
+  .val-yellow { color: var(--yellow); }
+  .val-blue { color: var(--accent); }
+
+  /* Activity Log */
+  .log-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .log-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .log-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,217,255,0.08);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .log-table { width: 100%; border-collapse: collapse; }
+
+  .log-table th {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding: 10px 24px;
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    font-weight: 700;
+  }
+
+  .log-table td {
+    padding: 12px 24px;
+    font-size: 13px;
+    border-top: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+  }
+
+  .log-table tr:hover td {
+    background: rgba(255,255,255,0.02);
+  }
+
+  .app-name {
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .title-cell {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cat-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .cat-red    { background: rgba(255,61,107,0.12); color: var(--red); border: 1px solid rgba(255,61,107,0.25); }
+  .cat-green  { background: rgba(0,255,157,0.08); color: var(--green); border: 1px solid rgba(0,255,157,0.2); }
+  .cat-yellow { background: rgba(255,214,0,0.08); color: var(--yellow); border: 1px solid rgba(255,214,0,0.2); }
+  .cat-gray   { background: rgba(107,122,153,0.1); color: var(--gray); border: 1px solid rgba(107,122,153,0.2); }
+
+  .time-cell {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  .duration-cell {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  /* Alert Banner */
+  #alert-banner {
+    display: none;
+    background: rgba(255,61,107,0.12);
+    border: 1px solid rgba(255,61,107,0.4);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    font-weight: 700;
+    color: var(--red);
+    font-size: 15px;
+    animation: alertPulse 1s ease-in-out infinite alternate;
+  }
+
+  @keyframes alertPulse {
+    from { border-color: rgba(255,61,107,0.3); }
+    to   { border-color: rgba(255,61,107,0.8); }
+  }
+
+  /* Connection status */
+  .conn-error {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+  }
+
+  .conn-error h2 { color: var(--red); font-size: 20px; margin-bottom: 12px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .row-new td { animation: rowIn 0.4s ease; }
+  @keyframes rowIn {
+    from { background: rgba(0,217,255,0.05); }
+    to   { background: transparent; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">👁️</div>
+      <div>
+        <h1>Parent<span>Watch</span></h1>
+        <div id="hostname" style="font-size:11px; color: var(--dim); margin-top:2px;">Connecting...</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge"><div class="live-dot"></div> LIVE MONITORING</div>
+      <div id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <div id="alert-banner">⚠️ Alert: Your son is on a distraction site!</div>
+
+  <!-- Current Activity -->
+  <div class="current-card" id="current-card">
+    <div class="current-label">Currently Active</div>
+    <div class="current-main">
+      <div class="current-info">
+        <div class="current-app" id="cur-app">Waiting...</div>
+        <div class="current-title" id="cur-title">—</div>
+        <div class="current-category" id="cur-cat">Detecting...</div>
+      </div>
+      <div class="current-stats">
+        <div class="stat-box">
+          <span class="stat-value" id="cur-duration">0s</span>
+          <span class="stat-label">Time on App</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-value" id="cur-since">--:--</span>
+          <span class="stat-label">Started At</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-row">
+    <div class="mini-stat">
+      <div class="mini-stat-icon">📊</div>
+      <div class="mini-stat-info">
+        <div class="mini-stat-val val-blue" id="stat-total">0</div>
+        <div class="mini-stat-lbl">Apps Logged</div>
+      </div>
+    </div>
+    <div class="mini-stat">
+      <div class="mini-stat-icon">✅</div>
+      <div class="mini-stat-info">
+        <div class="mini-stat-val val-green" id="stat-prod">0</div>
+        <div class="mini-stat-lbl">Productive Sessions</div>
+      </div>
+    </div>
+    <div class="mini-stat">
+      <div class="mini-stat-icon">⚠️</div>
+      <div class="mini-stat-info">
+        <div class="mini-stat-val val-red" id="stat-dist">0</div>
+        <div class="mini-stat-lbl">Distraction Sessions</div>
+      </div>
+    </div>
+    <div class="mini-stat">
+      <div class="mini-stat-icon">⏱️</div>
+      <div class="mini-stat-info">
+        <div class="mini-stat-val val-yellow" id="stat-time">0m</div>
+        <div class="mini-stat-lbl">Total Tracked</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity Log -->
+  <div class="log-section">
+    <div class="log-header">
+      <span class="log-title">Activity History</span>
+      <span class="log-count" id="log-count">0 entries</span>
+    </div>
+    <div id="log-container" style="overflow-x:auto;">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Application</th>
+            <th>Window / Tab Title</th>
+            <th>Category</th>
+            <th>Started</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="5" class="conn-error"><h2>⏳</h2>Waiting for data from laptop...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "/api/status";
+let prevApp = null;
+let logCount = 0;
+
+function fmtDuration(secs) {
+  if (secs < 60) return secs + "s";
+  if (secs < 3600) return Math.floor(secs/60) + "m " + (secs%60) + "s";
+  return Math.floor(secs/3600) + "h " + Math.floor((secs%3600)/60) + "m";
+}
+
+function colorClass(color) {
+  return "cat-" + (color || "gray");
+}
+
+async function refresh() {
+  try {
+    const res = await fetch(API);
+    const data = await res.json();
+
+    // Clock & hostname
+    document.getElementById("clock").textContent = data.time.split(" ")[1];
+    document.getElementById("hostname").textContent = "📡 " + data.hostname;
+
+    // Current activity
+    const cur = data.current;
+    const card = document.getElementById("current-card");
+    card.className = "current-card " + (cur.color || "");
+    document.getElementById("cur-app").textContent = cur.app || "Unknown";
+    document.getElementById("cur-app").style.color =
+      cur.color === "green" ? "var(--green)" :
+      cur.color === "red" ? "var(--red)" :
+      cur.color === "yellow" ? "var(--yellow)" : "var(--text)";
+    document.getElementById("cur-title").textContent = cur.title || "—";
+    document.getElementById("cur-cat").textContent = cur.category || "Unknown";
+    document.getElementById("cur-duration").textContent = fmtDuration(cur.duration || 0);
+    document.getElementById("cur-since").textContent = cur.since || "--:--";
+
+    // Alert for red category
+    const alertEl = document.getElementById("alert-banner");
+    if (cur.color === "red") {
+      alertEl.style.display = "block";
+      alertEl.textContent = "⚠️ Alert: " + cur.category + " — " + cur.app + " is open!";
+    } else {
+      alertEl.style.display = "none";
+    }
+
+    // Stats
+    const log = data.log || [];
+    const productive = log.filter(e => e.color === "green").length;
+    const distraction = log.filter(e => e.color === "red").length;
+    const totalSecs = log.reduce((s, e) => s + (e.duration || 0), 0);
+    document.getElementById("stat-total").textContent = log.length;
+    document.getElementById("stat-prod").textContent = productive;
+    document.getElementById("stat-dist").textContent = distraction;
+    document.getElementById("stat-time").textContent = fmtDuration(totalSecs);
+    document.getElementById("log-count").textContent = log.length + " entries";
+
+    // Render log
+    if (log.length > 0 && log.length !== logCount) {
+      logCount = log.length;
+      const tbody = document.getElementById("log-body");
+      tbody.innerHTML = log.map((e, i) => `
+        <tr class="${i === 0 ? 'row-new' : ''}">
+          <td><span class="app-name">${e.app}</span></td>
+          <td><div class="title-cell" title="${e.title}">${e.title || "—"}</div></td>
+          <td><span class="cat-badge ${colorClass(e.color)}">${e.category}</span></td>
+          <td><span class="time-cell">${e.started}</span></td>
+          <td><span class="duration-cell">${fmtDuration(e.duration || 0)}</span></td>
+        </tr>
+      `).join("");
+    }
+
+  } catch (err) {
+    document.getElementById("cur-app").textContent = "Offline";
+    document.getElementById("cur-title").textContent = "Cannot reach laptop — check same network";
+  }
+}
+
+// Update clock every second
+setInterval(() => {
+  const now = new Date();
+  document.getElementById("clock").textContent = now.toTimeString().split(" ")[0];
+}, 1000);
+
+// Fetch data every 3 seconds
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
