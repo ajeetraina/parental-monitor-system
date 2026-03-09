@@ -1,13 +1,14 @@
-========================================
-  ParentWatch - Parental Monitor Tool
-========================================
+##  ParentWatch - Parental Monitor Tool
 
+```
 FILES:
   monitor_agent.py          - Main monitor (runs on laptop)
   dashboard.html            - Web dashboard (auto-served)
   START_MONITOR.bat         - Windows: double-click to start
   start_monitor.sh          - Mac/Linux: run in terminal
   install_autostart_windows.bat - Auto-start on Windows boot
+```
+
 
 SETUP (One-time):
   1. Install Python 3: https://python.org
